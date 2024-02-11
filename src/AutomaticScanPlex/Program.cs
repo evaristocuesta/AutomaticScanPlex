@@ -10,8 +10,14 @@ builder.Services.AddWindowsService(options =>
 
 builder.Services.AddHostedService<AutomaticScanPlexWindowsService>();
 builder.Services.AddSingleton<IPlexService, PlexService>();
+
 var plexOptions = builder.Configuration.GetSection(PlexOptions.Plex);
-builder.Services.Configure<PlexOptions>(plexOptions);
+
+builder.Services.AddOptions<PlexOptions>()
+    .Bind(plexOptions)
+    .ValidateDataAnnotations()
+    .ValidateOnStart();
+
 string? defaultSectionUrlBase = plexOptions.GetSection("SectionsUrlBase").Value;
 
 builder.Services.AddHttpClient(
