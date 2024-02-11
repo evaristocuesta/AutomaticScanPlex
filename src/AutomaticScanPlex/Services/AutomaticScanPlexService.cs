@@ -1,29 +1,36 @@
+using AutomaticScanPlex.Models;
+using System.Collections.Concurrent;
+
 namespace AutomaticScanPlex.Services;
 
-public class AutomaticScanPlexWindowsService : BackgroundService
+public class AutomaticScanPlexService : BackgroundService
 {
-    private readonly ILogger<AutomaticScanPlexWindowsService> _logger;
+    private readonly ILogger<AutomaticScanPlexService> _logger;
     private readonly IPlexService _plexService;
     private readonly List<FileSystemWatcher> _watchers;
+    private readonly ConcurrentDictionary<long, Section> _sectionsToUpdate;
+    private List<Section> _sections;
 
-    public AutomaticScanPlexWindowsService(
-        ILogger<AutomaticScanPlexWindowsService> logger,
+    public AutomaticScanPlexService(
+        ILogger<AutomaticScanPlexService> logger,
         IPlexService plexService)
     {
         _logger = logger;
         _plexService = plexService;
-        _watchers = new List<FileSystemWatcher>();
+        _watchers = new();
+        _sectionsToUpdate = new();
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         while (!stoppingToken.IsCancellationRequested)
         {
-            if (_logger.IsEnabled(LogLevel.Information))
+            foreach (var kvp in _sectionsToUpdate)
             {
-                _logger.LogInformation("Worker running at: {time}", DateTimeOffset.Now);
+                _logger.LogInformation("Refreshing section {name} at: {time}", kvp.Value.Name, DateTimeOffset.Now);
             }
 
+            _sectionsToUpdate.Clear();
             await Task.Delay(60_000, stoppingToken);
         }
     }
@@ -31,9 +38,9 @@ public class AutomaticScanPlexWindowsService : BackgroundService
     public override Task StartAsync(CancellationToken cancellationToken)
     {
         _logger.LogInformation("Worker starts at {time}", DateTimeOffset.Now);
-        var sections = _plexService.GetSectionsAsync(cancellationToken).Result;
+        _sections = _plexService.GetSectionsAsync(cancellationToken).Result;
 
-        foreach (var path in sections.Select(s => s.Path))
+        foreach (var path in _sections.Select(s => s.Path))
         {
             if (string.IsNullOrEmpty(path))
             {
@@ -77,21 +84,25 @@ public class AutomaticScanPlexWindowsService : BackgroundService
     private void OnRenamed(object sender, RenamedEventArgs e)
     {
         _logger.LogInformation("File {oldFile} renamed to {file} at {time}", e.OldName, e.Name, DateTimeOffset.Now);
+        AddSectionToUpdate(e.FullPath);
     }
 
     private void OnDeleted(object sender, FileSystemEventArgs e)
     {
         _logger.LogInformation("File {file} deleted at {time}", e.Name, DateTimeOffset.Now);
+        AddSectionToUpdate(e.FullPath);
     }
 
     private void OnCreated(object sender, FileSystemEventArgs e)
     {
         _logger.LogInformation("File {file} created at {time}", e.Name, DateTimeOffset.Now);
+        AddSectionToUpdate(e.FullPath);
     }
 
     private void OnChanged(object sender, FileSystemEventArgs e)
     {
         _logger.LogInformation("File {file} changed {changeType} at {time}", e.Name, e.ChangeType, DateTimeOffset.Now);
+        AddSectionToUpdate(e.FullPath);
     }
 
     private void PrintException(Exception? ex)
@@ -100,6 +111,16 @@ public class AutomaticScanPlexWindowsService : BackgroundService
         {
             _logger.LogError("Worker error at {time}: {message}", DateTimeOffset.Now, ex.Message);
             PrintException(ex.InnerException);
+        }
+    }
+
+    private void AddSectionToUpdate(string path)
+    {
+        var sectionsToUpdate = _sections.Where(s => s.Path is not null && path.StartsWith(s.Path));
+
+        foreach (var section in sectionsToUpdate)
+        {
+            _sectionsToUpdate.TryAdd(section.Id, section);
         }
     }
 }

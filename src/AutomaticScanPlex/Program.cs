@@ -8,7 +8,7 @@ builder.Services.AddWindowsService(options =>
     options.ServiceName = "Automatic Scan Plex";
 });
 
-builder.Services.AddHostedService<AutomaticScanPlexWindowsService>();
+builder.Services.AddHostedService<AutomaticScanPlexService>();
 builder.Services.AddSingleton<IPlexService, PlexService>();
 
 var plexOptions = builder.Configuration.GetSection(PlexOptions.Plex);
