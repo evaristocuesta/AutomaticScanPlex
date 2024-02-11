@@ -18,13 +18,19 @@ builder.Services.AddOptions<PlexOptions>()
     .ValidateDataAnnotations()
     .ValidateOnStart();
 
-string? defaultSectionUrlBase = plexOptions.GetSection("SectionsUrlBase").Value;
+string? sectionUrlBase = plexOptions.GetSection("SectionsUrlBase").Value;
+
+if (string.IsNullOrWhiteSpace(sectionUrlBase))
+{
+    Console.WriteLine("Set an section url base in app config");
+    return;
+}
 
 builder.Services.AddHttpClient(
     "PlexSections",
     client =>
     {
-        client.BaseAddress = new Uri(defaultSectionUrlBase);
+        client.BaseAddress = new Uri(sectionUrlBase);
     });
 
 var host = builder.Build();
