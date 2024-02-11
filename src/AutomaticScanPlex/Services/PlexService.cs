@@ -43,4 +43,11 @@ public class PlexService : IPlexService
         var converter = new SectionsConverter();
         return converter.Convert(result);
     }
+
+    public async Task<bool> RefreshSection(Section section, CancellationToken ct)
+    {
+        var httpClient = _httpClientFactory.CreateClient("PlexSections");
+        var response = await httpClient.GetAsync($"{section.Id}/refresh?X-Plex-Token={_plexOptions.Token}", ct);
+        return response.IsSuccessStatusCode;
+    }
 }

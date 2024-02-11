@@ -19,15 +19,22 @@ public class AutomaticScanPlexService : BackgroundService
         _plexService = plexService;
         _watchers = new();
         _sectionsToUpdate = new();
+        _sections = new();
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         while (!stoppingToken.IsCancellationRequested)
         {
-            foreach (var kvp in _sectionsToUpdate)
+            foreach (var section in _sectionsToUpdate.Values)
             {
-                _logger.LogInformation("Refreshing section {name} at: {time}", kvp.Value.Name, DateTimeOffset.Now);
+                _logger.LogInformation("Refreshing section {name} at: {time}", section.Name, DateTimeOffset.Now);
+                var refreshed = await _plexService.RefreshSection(section, stoppingToken);
+
+                if (!refreshed)
+                {
+                    _logger.LogError("Error Refreshing section {name} at: {time}", section.Name, DateTimeOffset.Now);
+                }
             }
 
             _sectionsToUpdate.Clear();
