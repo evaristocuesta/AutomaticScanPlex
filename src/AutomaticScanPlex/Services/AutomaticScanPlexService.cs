@@ -54,33 +54,30 @@ public class AutomaticScanPlexService : BackgroundService
         }
     }
 
-    private async Task RefreshSectionsToUpdate(CancellationToken stoppingToken)
-    {
-        foreach (var section in _sectionsToUpdate.Values)
-        {
-            _logger.LogInformation("Refreshing section {name} at: {time}", section.Name, DateTimeOffset.Now);
-            var refreshed = await _plexService.RefreshSection(section, stoppingToken);
-
-            if (!refreshed)
-            {
-                _logger.LogError("Error Refreshing section {name} at: {time}", section.Name, DateTimeOffset.Now);
-            }
-        }
-
-        _sectionsToUpdate.Clear();
-    }
-
     public override Task StartAsync(CancellationToken cancellationToken)
     {
         _logger.LogInformation("Worker starts at {time}", DateTimeOffset.Now);
         return base.StartAsync(cancellationToken);
     }
 
+    public override Task StopAsync(CancellationToken cancellationToken)
+    {
+        _logger.LogInformation("Worker stops at {time}", DateTimeOffset.Now);
+        RemoveWatchers();
+        return base.StopAsync(cancellationToken);
+    }
+
     private async Task CreateWatchersSectionsAsync(CancellationToken ct)
     {
         RemoveWatchers();
-
         _sections = await _plexService.GetSectionsAsync(ct);
+
+        if (_sections.Count == 0)
+        {
+            _logger.LogWarning("Cannot get sections from Plex at {time}", DateTimeOffset.Now);
+            return;
+        }
+
         _watchers.Clear();
 
         foreach (var section in _sections)
@@ -104,13 +101,20 @@ public class AutomaticScanPlexService : BackgroundService
         }
     }
 
-    public override Task StopAsync(CancellationToken cancellationToken)
+    private async Task RefreshSectionsToUpdate(CancellationToken stoppingToken)
     {
-        _logger.LogInformation("Worker stops at {time}", DateTimeOffset.Now);
+        foreach (var section in _sectionsToUpdate.Values)
+        {
+            _logger.LogInformation("Refreshing section {name} at: {time}", section.Name, DateTimeOffset.Now);
+            var refreshed = await _plexService.RefreshSection(section, stoppingToken);
 
-        RemoveWatchers();
+            if (!refreshed)
+            {
+                _logger.LogError("Error Refreshing section {name} at: {time}", section.Name, DateTimeOffset.Now);
+            }
+        }
 
-        return base.StopAsync(cancellationToken);
+        _sectionsToUpdate.Clear();
     }
 
     private void RemoveWatchers()
