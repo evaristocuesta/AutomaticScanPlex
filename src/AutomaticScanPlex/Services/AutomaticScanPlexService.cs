@@ -7,7 +7,7 @@ public class AutomaticScanPlexService : BackgroundService
 {
     private readonly ILogger<AutomaticScanPlexService> _logger;
     private readonly IPlexService _plexService;
-    private readonly List<FileSystemWatcher> _watchers;
+    private readonly Dictionary<long, FileSystemWatcher> _watchers;
     private readonly ConcurrentDictionary<long, Section> _sectionsToUpdate;
     private List<Section> _sections;
 
@@ -24,39 +24,75 @@ public class AutomaticScanPlexService : BackgroundService
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        while (!stoppingToken.IsCancellationRequested)
+        try
         {
-            foreach (var section in _sectionsToUpdate.Values)
+            while (!stoppingToken.IsCancellationRequested)
             {
-                _logger.LogInformation("Refreshing section {name} at: {time}", section.Name, DateTimeOffset.Now);
-                var refreshed = await _plexService.RefreshSection(section, stoppingToken);
-
-                if (!refreshed)
-                {
-                    _logger.LogError("Error Refreshing section {name} at: {time}", section.Name, DateTimeOffset.Now);
-                }
+                await CreateWatchersSectionsAsync(stoppingToken);
+                await Task.Delay(60_000, stoppingToken);
+                await RefreshSectionsToUpdate(stoppingToken);
             }
-
-            _sectionsToUpdate.Clear();
-            await Task.Delay(60_000, stoppingToken);
         }
+        catch ( OperationCanceledException)
+        {
+            // When the stopping token is cancelled
+        }
+        catch ( Exception ex ) 
+        {
+            _logger.LogError(ex, "Error {message}", ex.Message);
+
+            // Terminates this process and returns an exit code to the operating system.
+            // This is required to avoid the 'BackgroundServiceExceptionBehavior', which
+            // performs one of two scenarios:
+            // 1. When set to "Ignore": will do nothing at all, errors cause zombie services.
+            // 2. When set to "StopHost": will cleanly stop the host, and log errors.
+            //
+            // In order for the Windows Service Management system to leverage configured
+            // recovery options, we need to terminate the process with a non-zero exit code.
+
+            Environment.Exit(1);
+        }
+    }
+
+    private async Task RefreshSectionsToUpdate(CancellationToken stoppingToken)
+    {
+        foreach (var section in _sectionsToUpdate.Values)
+        {
+            _logger.LogInformation("Refreshing section {name} at: {time}", section.Name, DateTimeOffset.Now);
+            var refreshed = await _plexService.RefreshSection(section, stoppingToken);
+
+            if (!refreshed)
+            {
+                _logger.LogError("Error Refreshing section {name} at: {time}", section.Name, DateTimeOffset.Now);
+            }
+        }
+
+        _sectionsToUpdate.Clear();
     }
 
     public override Task StartAsync(CancellationToken cancellationToken)
     {
         _logger.LogInformation("Worker starts at {time}", DateTimeOffset.Now);
-        _sections = _plexService.GetSectionsAsync(cancellationToken).Result;
+        return base.StartAsync(cancellationToken);
+    }
 
-        foreach (var path in _sections.Select(s => s.Path))
+    private async Task CreateWatchersSectionsAsync(CancellationToken ct)
+    {
+        RemoveWatchers();
+
+        _sections = await _plexService.GetSectionsAsync(ct);
+        _watchers.Clear();
+
+        foreach (var section in _sections)
         {
-            if (string.IsNullOrEmpty(path))
+            if (string.IsNullOrEmpty(section.Path))
             {
                 continue;
             }
 
-            _logger.LogInformation("Worker starts watching {path} at {time}", path, DateTimeOffset.Now);
+            _logger.LogInformation("Worker starts watching {path} at {time}", section.Path, DateTimeOffset.Now);
 
-            var watcher = new FileSystemWatcher(path);
+            var watcher = new FileSystemWatcher(section.Path);
             watcher.Changed += OnChanged;
             watcher.Created += OnCreated;
             watcher.Deleted += OnDeleted;
@@ -64,23 +100,26 @@ public class AutomaticScanPlexService : BackgroundService
             watcher.Error += OnError;
             watcher.IncludeSubdirectories = true;
             watcher.EnableRaisingEvents = true;
-            _watchers.Add(watcher);
+            _watchers.Add(section.Id, watcher);
         }
-
-        return base.StartAsync(cancellationToken);
     }
 
     public override Task StopAsync(CancellationToken cancellationToken)
     {
         _logger.LogInformation("Worker stops at {time}", DateTimeOffset.Now);
 
-        foreach (var watcher in _watchers)
+        RemoveWatchers();
+
+        return base.StopAsync(cancellationToken);
+    }
+
+    private void RemoveWatchers()
+    {
+        foreach (var watcher in _watchers.Values)
         {
             _logger.LogInformation("Worker stops watching {path} at {time}", watcher.Path, DateTimeOffset.Now);
             watcher.Dispose();
         }
-
-        return base.StopAsync(cancellationToken);
     }
 
     private void OnError(object sender, ErrorEventArgs e)

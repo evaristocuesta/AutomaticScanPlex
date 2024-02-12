@@ -1,5 +1,7 @@
 using AutomaticScanPlex.Configurations;
 using AutomaticScanPlex.Services;
+using Polly.Extensions.Http;
+using Polly;
 
 var builder = Host.CreateApplicationBuilder(args);
 
@@ -31,7 +33,17 @@ builder.Services.AddHttpClient(
     client =>
     {
         client.BaseAddress = new Uri(sectionUrlBase);
-    });
+    })
+    .SetHandlerLifetime(TimeSpan.FromMinutes(5))
+    .AddPolicyHandler(GetRetryPolicy());
 
 var host = builder.Build();
 host.Run();
+
+static IAsyncPolicy<HttpResponseMessage> GetRetryPolicy()
+{
+    return HttpPolicyExtensions
+        .HandleTransientHttpError()
+        .OrResult(msg => msg.StatusCode == System.Net.HttpStatusCode.NotFound)
+        .WaitAndRetryAsync(5, retryAttempt => TimeSpan.FromSeconds(2 * retryAttempt));
+}
