@@ -7,50 +7,43 @@
 <?define UpgradeCode = "9ED3FF33-8718-444E-B44B-69A2344B7E98" ?>
 
 <Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
-	<Package Name="$(Name)"
+  <Package Name="$(Name)"
              Manufacturer="$(Manufacturer)"
              Version="$(Version)"
              UpgradeCode="$(var.UpgradeCode)"
              Compressed="true">
 
-		<!-- Allow upgrades and prevent downgrades -->
-		<MajorUpgrade DowngradeErrorMessage="!(loc.DowngradeError)" />
+    <!-- Allow upgrades and prevent downgrades -->
+    <MajorUpgrade DowngradeErrorMessage="!(loc.DowngradeError)" />
 
-		<!-- Define the directory structure -->
-		<Directory Id="TARGETDIR" Name="SourceDir">
-			<Directory Id="ProgramFiles64Folder">
+    <!-- Define the directory structure -->
+    <StandardDirectory Id="ProgramFiles64Folder">
+      <!-- Create a folder within the parent folder given the name -->
+      <Directory Id="INSTALLFOLDER" Name="$(Name)" />
+    </StandardDirectory>
 
-				<!-- Create a folder inside program files -->
-				<Directory Id="ROOTDIRECTORY" Name="$(var.Manufacturer)">
-
-					<!-- Create a folder within the parent folder given the name -->
-					<Directory Id="INSTALLFOLDER" Name="$(Name)" />
-				</Directory>
-			</Directory>
-		</Directory>
-
-		<!-- The files inside this DirectoryRef are linked to
+    <!-- The files inside this DirectoryRef are linked to
              the App.WindowsService directory via INSTALLFOLDER -->
-		<DirectoryRef Id="INSTALLFOLDER">
+    <DirectoryRef Id="INSTALLFOLDER">
 
-			<!-- Create a single component which is the App.WindowsService.exe file -->
-			<Component Id="ServiceExecutable" Bitness="always64">
+      <!-- Create a single component which is the App.WindowsService.exe file -->
+      <Component Id="ServiceExecutable" Bitness="always64">
 
-				<!-- Copies the AutomaticScanPlex.exe file using the
+        <!-- Copies the AutomaticScanPlex.exe file using the
                      project reference preprocessor variables -->
-				<File Id="AutomaticScanPlex.exe"
+        <File Id="AutomaticScanPlex.exe"
                       Source="$(var.AutomaticScanPlex.TargetDir)publish\win-x64\AutomaticScanPlex.exe"
                       KeyPath="true" />
 
-				<File Id="appsettings.json"
+        <File Id="appsettings.json"
                       Source="$(var.AutomaticScanPlex.TargetDir)publish\win-x64\appsettings.json"
                       KeyPath="false" />
 
-				<!-- Remove all files from the INSTALLFOLDER on uninstall -->
-				<RemoveFile Id="ALLFILES" Name="*.*" On="both" />
+        <!-- Remove all files from the INSTALLFOLDER on uninstall -->
+        <RemoveFile Id="ALLFILES" Name="*.*" On="both" />
 
-				<!-- Tell WiX to install the Service -->
-				<ServiceInstall Id="ServiceInstaller"
+        <!-- Tell WiX to install the Service -->
+        <ServiceInstall Id="ServiceInstaller"
                                 Type="ownProcess"
                                 Name="AutomaticScanPlex.exe"
                                 DisplayName="$(Name)"
@@ -58,20 +51,20 @@
                                 Start="auto"
                                 ErrorControl="normal" />
 
-				<!-- Tell WiX to start the Service -->
-				<!--<ServiceControl Id="StartService"
+        <!-- Tell WiX to start the Service -->
+        <!--<ServiceControl Id="StartService"
                                 Start="install"
                                 Stop="both"
                                 Remove="uninstall"
                                 Name="App.WindowsService"
                                 Wait="true" />-->
-			</Component>
-		</DirectoryRef>
+      </Component>
+    </DirectoryRef>
 
-		<!-- Tell WiX to install the files -->
-		<Feature Id="Service" Title="Automatic Scan Plex Setup" Level="1">
-			<ComponentRef Id="ServiceExecutable" />
-		</Feature>
+    <!-- Tell WiX to install the files -->
+    <Feature Id="Service" Title="Automatic Scan Plex Setup" Level="1">
+      <ComponentRef Id="ServiceExecutable" />
+    </Feature>
 
-	</Package>
+  </Package>
 </Wix>
