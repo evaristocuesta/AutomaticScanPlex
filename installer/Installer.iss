@@ -50,6 +50,6 @@ Filename: {sys}\sc.exe; Parameters: "description ""{#MyAppName}"" ""Scan and upd
 Filename: {sys}\sc.exe; Parameters: "start ""{#MyAppName}""" ; Flags: runhidden
 
 [UninstallRun]
-Filename: {sys}\sc.exe; Parameters: "stop ""{#MyAppName}""" ; Flags: runhidden
-Filename: {sys}\sc.exe; Parameters: "delete ""{#MyAppName}""" ; Flags: runhidden
+Filename: {sys}\sc.exe; Parameters: "stop ""{#MyAppName}""" ; Flags: runhidden; RunOnceId: "AutomaticScanPlexStop"
+Filename: {sys}\sc.exe; Parameters: "delete ""{#MyAppName}""" ; Flags: runhidden; RunOnceId: "AutomaticScanPlexDelete"
 
