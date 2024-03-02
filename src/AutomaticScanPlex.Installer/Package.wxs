@@ -45,19 +45,19 @@
         <!-- Tell WiX to install the Service -->
         <ServiceInstall Id="ServiceInstaller"
                                 Type="ownProcess"
-                                Name="AutomaticScanPlex.exe"
+                                Name="$(Name)"
                                 DisplayName="$(Name)"
                                 Description="Windows service to scan and update Plex folders automatically"
                                 Start="auto"
                                 ErrorControl="normal" />
 
         <!-- Tell WiX to start the Service -->
-        <!--<ServiceControl Id="StartService"
+        <ServiceControl Id="StartService"
                                 Start="install"
                                 Stop="both"
                                 Remove="uninstall"
-                                Name="App.WindowsService"
-                                Wait="true" />-->
+                                Name="$(Name)"
+                                Wait="true" />
       </Component>
     </DirectoryRef>
 
